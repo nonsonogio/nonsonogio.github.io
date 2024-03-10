@@ -8,6 +8,6 @@ categories:
 
 # Welcome to Digital Forensics
 
-This is a dfir page.
+This is a dfir page edited.
 
 See [[malware|Malware]] for more or [[vim]]
