@@ -8,7 +8,6 @@ nav:
 
 theme:
   name: material
-  custom_dir: _overrides
   palette:
     scheme: slate
     primary: blue grey
