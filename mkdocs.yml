@@ -1,0 +1,46 @@
+site_name: "@iosonogio"
+
+copyright: Copyright &copy; iosonogio
+
+nav:
+  - Linux: linux
+  - Security: security
+
+theme:
+  name: material
+  custom_dir: _overrides
+  palette:
+    scheme: slate
+    primary: blue grey
+
+  features:
+    - navigation.indexes
+    - navigation.sections
+
+extra:
+  generator: false
+
+plugins:
+  - search
+  - awesome-pages
+  - ezlinks
+  - tags:
+      tags_file: tags.md
+  - categories:
+      generate_index: true
+      verbose: false
+      base_name: 'categories'
+      section_title: 'Categories'
+      no_nav: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      use_pygments: true
+      pygments_lang_class: true
+      auto_title: false
+      linenums: true
+      anchor_linenums: true
+      linenums_style: pymdownx-inline
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.keys
