@@ -1,0 +1,3 @@
+mkdocs-awesome-pages-plugin
+mkdocs-categories-plugin
+mkdocs-ezlinks-plugin
