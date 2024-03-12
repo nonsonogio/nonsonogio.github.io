@@ -1,0 +1,947 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="This is an in-depth analysis of how process hollowing works from the point of view of a malware.">
+      
+      
+      
+      
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.13">
+    
+    
+      
+        <title>Process Hollowing: a reverse engineering case - @iosonogio</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.7e359304.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue-grey" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#process-hollowing-a-reverse-engineering-case" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="@iosonogio" class="md-header__button md-logo" aria-label="@iosonogio" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            @iosonogio
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Process Hollowing: a reverse engineering case
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="@iosonogio" class="md-nav__button md-logo" aria-label="@iosonogio" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54Z"/></svg>
+
+    </a>
+    @iosonogio
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../linux" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Linux
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Security
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-process-hollowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      What is Process Hollowing?
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reverse-engineering-a-malware-that-performs-process-hollowing" class="md-nav__link">
+    <span class="md-ellipsis">
+      Reverse engineering a malware that performs Process Hollowing
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#static-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Static Analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Static Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pe-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      PE structure
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interesting-strings" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interesting strings
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interesting-imports" class="md-nav__link">
+    <span class="md-ellipsis">
+      Interesting imports
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#code-analysis" class="md-nav__link">
+    <span class="md-ellipsis">
+      Code Analysis
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Code Analysis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#dropping-the-embedded-resource-function-sub_40132c" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dropping the embedded resource (function sub_40132C)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Dropping the embedded resource (function sub_40132C)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#decryption-routine-function-sub_401000" class="md-nav__link">
+    <span class="md-ellipsis">
+      Decryption routine (function sub_401000)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#performing-process-hollowing-function-sub_4010ea" class="md-nav__link">
+    <span class="md-ellipsis">
+      Performing process hollowing (function sub_4010EA)
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Performing process hollowing (function sub_4010EA)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#step-1-creating-a-process-in-a-suspended-state" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 1: Creating a process in a suspended state
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#obtaining-the-imagebase-address-of-the-suspended-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      Obtaining the ImageBase address of the suspended process
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-2-unmapping-the-suspended-process-from-memory" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 2: Unmapping the suspended process from memory
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-3-allocating-new-memory-space-within-the-suspended-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 3: Allocating new memory space within the suspended process
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#step-4-writing-the-malicious-code-into-the-suspended-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      Step 4: Writing the malicious code into the suspended process
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#steps-5-and-6-setting-the-entry-point-and-resuming-the-thread" class="md-nav__link">
+    <span class="md-ellipsis">
+      Steps 5 and 6: Setting the entry point and resuming the thread
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#analysis-of-the-dropped-executable" class="md-nav__link">
+    <span class="md-ellipsis">
+      Analysis of the dropped executable
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lets-make-it-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      Let's make it run
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+<nav class="md-tags" >
+  
+    
+    
+    
+      <a href="../tags.html#malware" class="md-tag">malware</a>
+    
+  
+</nav>
+
+
+
+<h1 id="process-hollowing-a-reverse-engineering-case">Process Hollowing: a reverse engineering case</h1>
+<p>This is an in-depth analysis of how <strong>Process Hollowing</strong> works from the point of view of a malware (and from that of a malware analyst). While reverse-engineering a sample from the Lab 12-2 of the book <em>Practical Malware Analysis</em>, I'll be showing what Process Hollowing is and how a malware can use this technique to hide itself.</p>
+<!--more-->
+
+<h2 id="what-is-process-hollowing">What is Process Hollowing?</h2>
+<p><strong>Process Hollowing</strong> (or <strong>Process Replacement</strong>) is a technique employed by a malware with the purpose of hiding itself under a legitimate process thus evading detection.</p>
+<p>Process Hollowing occurs when a malware <strong>creates a benign process in a <em>suspended state</em></strong> and then <strong>unmaps and replaces the process memory with malicious code</strong>.</p>
+<p>Process Hollowing works as follows:</p>
+<ol>
+<li>
+<p>The malware creates a benign process in a suspended state (API function used: <code>CreateProcessA</code>).</p>
+</li>
+<li>
+<p>The malware releases the memory of the suspended process (API function used: <code>NtUnmapViewOfSection</code>).</p>
+</li>
+<li>
+<p>The malware allocates new memory within the suspended process where to write its malicious code (API function used: <code>VirtualAllocEx</code>).</p>
+</li>
+<li>
+<p>The malware writes its malicious code into the newly allocated memory region (API function used: <code>WriteProcessMemory</code>; usually this function is called once for writing the PE headers and then called again in a loop for each PE section).</p>
+</li>
+<li>
+<p>The malware restores the victim process environment by setting its entry point to point to the malicious code, so to make the malicious code run (API function used: <code>SetThreadContext</code>).</p>
+</li>
+<li>
+<p>The malware resumes the suspended thread, thus initiating the execution of the malicious code (API function used: <code>ResumeThread</code>).</p>
+</li>
+</ol>
+<p>Such a sequence of API function calls makes a pattern that clearly indicates that the malware is attempting to perform Process Hollowing.</p>
+<h2 id="reverse-engineering-a-malware-that-performs-process-hollowing">Reverse engineering a malware that performs Process Hollowing</h2>
+<p>The sample that I'm analyzing can be downloaded from <a href="https://github.com/iosonogio/PracticalMalwareAnalysis-Labs">here</a>.</p>
+<p>These are the sample hashes:</p>
+<table>
+<thead>
+<tr>
+<th>hash</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>md5</td>
+<td>e2bf42217a67e46433da8b6f4507219e</td>
+</tr>
+<tr>
+<td>sha1</td>
+<td>daf263702f11dc0430d30f9bf443e7885cf91fcb</td>
+</tr>
+<tr>
+<td>sha256</td>
+<td>ae8a1c7eb64c42ea2a04f97523ebf0844c27029eb040d910048b680f884b9dce</td>
+</tr>
+</tbody>
+</table>
+<h2 id="static-analysis">Static Analysis</h2>
+<p>Let's start with some basic static analysis.</p>
+<h3 id="pe-structure">PE structure</h3>
+<p>Sections look OK. The sample is not packed.</p>
+<p>There is one embedded resource named <code>LOCALIZATION</code> in the <code>.rsrc</code> section. I can dump this resource using the Resource Hacker tool: the resource appears to contain raw binary data.</p>
+<h3 id="interesting-strings">Interesting strings</h3>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1"></a><a href="#__codelineno-0-1"><span class="linenos" data-linenos="1 "></span></a>\svchost.exe
+<a id="__codelineno-0-2" name="__codelineno-0-2"></a><a href="#__codelineno-0-2"><span class="linenos" data-linenos="2 "></span></a>NtUnmapViewOfSection
+<a id="__codelineno-0-3" name="__codelineno-0-3"></a><a href="#__codelineno-0-3"><span class="linenos" data-linenos="3 "></span></a>ntdll.dll
+</code></pre></div>
+<p>The <code>NtUnmapViewOfSection</code> string looks like an import that the malware may resolve at runtime using <code>GetProcAddress</code>.</p>
+<h3 id="interesting-imports">Interesting imports</h3>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1"></a><a href="#__codelineno-1-1"><span class="linenos" data-linenos=" 1 "></span></a>FindResourceA
+<a id="__codelineno-1-2" name="__codelineno-1-2"></a><a href="#__codelineno-1-2"><span class="linenos" data-linenos=" 2 "></span></a>LoadResource
+<a id="__codelineno-1-3" name="__codelineno-1-3"></a><a href="#__codelineno-1-3"><span class="linenos" data-linenos=" 3 "></span></a>LockResource
+<a id="__codelineno-1-4" name="__codelineno-1-4"></a><a href="#__codelineno-1-4"><span class="linenos" data-linenos=" 4 "></span></a>SizeofResource
+<a id="__codelineno-1-5" name="__codelineno-1-5"></a><a href="#__codelineno-1-5"><span class="linenos" data-linenos=" 5 "></span></a>FreeResource
+<a id="__codelineno-1-6" name="__codelineno-1-6"></a><a href="#__codelineno-1-6"><span class="linenos" data-linenos=" 6 "></span></a>
+<a id="__codelineno-1-7" name="__codelineno-1-7"></a><a href="#__codelineno-1-7"><span class="linenos" data-linenos=" 7 "></span></a>CreateFileA
+<a id="__codelineno-1-8" name="__codelineno-1-8"></a><a href="#__codelineno-1-8"><span class="linenos" data-linenos=" 8 "></span></a>ReadFile
+<a id="__codelineno-1-9" name="__codelineno-1-9"></a><a href="#__codelineno-1-9"><span class="linenos" data-linenos=" 9 "></span></a>WriteFile
+<a id="__codelineno-1-10" name="__codelineno-1-10"></a><a href="#__codelineno-1-10"><span class="linenos" data-linenos="10 "></span></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11"></a><a href="#__codelineno-1-11"><span class="linenos" data-linenos="11 "></span></a>ReadProcessMemory
+<a id="__codelineno-1-12" name="__codelineno-1-12"></a><a href="#__codelineno-1-12"><span class="linenos" data-linenos="12 "></span></a>
+<a id="__codelineno-1-13" name="__codelineno-1-13"></a><a href="#__codelineno-1-13"><span class="linenos" data-linenos="13 "></span></a>VirtualAllocEx
+<a id="__codelineno-1-14" name="__codelineno-1-14"></a><a href="#__codelineno-1-14"><span class="linenos" data-linenos="14 "></span></a>WriteProcessMemory
+<a id="__codelineno-1-15" name="__codelineno-1-15"></a><a href="#__codelineno-1-15"><span class="linenos" data-linenos="15 "></span></a>SetThreadContext
+<a id="__codelineno-1-16" name="__codelineno-1-16"></a><a href="#__codelineno-1-16"><span class="linenos" data-linenos="16 "></span></a>ResumeThread
+</code></pre></div>
+<h2 id="code-analysis">Code Analysis</h2>
+<p>Let's now open the sample in IDA Pro.</p>
+<p>The <code>main</code> function starts by getting a handle to the malware executable.</p>
+<p>Then it calls a subroutine (<code>sub_40149D</code>) to obtain the full path to the Windows <code>svchost.exe</code> executable, which is a system process used to host multiple Windows services. The full path is stored in the <code>ApplicationName</code> local variable.</p>
+<p>Next the function <code>sub_40132C</code> is called with the handle to the malware executable as a parameter.</p>
+<h3 id="dropping-the-embedded-resource-function-sub_40132c">Dropping the embedded resource (function <code>sub_40132C</code>)</h3>
+<p>The purpose of the <code>sub_40132C</code> function is to drop the embedded resource, copy it in memory and decrypt it. So I renamed it to <code>Sub_DropResource</code>.</p>
+<p>This function looks inside the malware executable for a resource named <code>LOCALIZATION</code>; the resource is loaded and copied into a newly allocated memory space.
+The resource is encrypted, so the malware calls the subroutine <code>sub_401000</code> to decrypt the resource in memory.</p>
+<p>The decryption routine is called only if the first two bytes of the resource are not <code>0x4D 0x5A</code>; since these two bytes are the MZ signature of DOS executables, I guess that the resource is an ecnrypted PE executable. So the main malware module is indeed a loader (or dropper).</p>
+<p>After decryption, the pointer to the decrypted resource in memory is returned to the calling main function and saved in the <code>lpBuffer</code> variable.</p>
+<h4 id="decryption-routine-function-sub_401000">Decryption routine (function <code>sub_401000</code>)</h4>
+<p>Let's give a quick look at the decryption routine <code>sub_401000</code> (renamed to <code>Sub_DecryptResource</code>).</p>
+<p>This routine takes three parameters:</p>
+<ul>
+<li>the pointer to the resource in memory (<code>arg_0</code>)</li>
+<li>the size of the resource (<code>arg_4</code>)</li>
+<li>the hex key <code>0x41</code> (<code>arg_8</code>)</li>
+</ul>
+<p>The decryption routine loops through each byte of the dumped resource and performs a XOR operation with the key <code>0x41</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1"></a><a href="#__codelineno-2-1"><span class="linenos" data-linenos="1 "></span></a>00401026 xor     al, [ebp+arg_8]
+</code></pre></div>
+<p>If I place a breakpoint in OllyDbg at <code>0x401036</code> (ie. right before the decryption function returns) I can see what the resource in memory looks like after decryption.
+The resource in memory is pointed to by <code>arg_0</code>: the following is the beginning of the decrypted resource in memory (notice the <code>MZ</code> signature):</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1"></a><a href="#__codelineno-3-1"><span class="linenos" data-linenos="1 "></span></a>00350000  4D 5A 90 00 03 00 00 00  MZ......
+<a id="__codelineno-3-2" name="__codelineno-3-2"></a><a href="#__codelineno-3-2"><span class="linenos" data-linenos="2 "></span></a>00350008  04 00 00 00 FF FF 00 00  ........
+<a id="__codelineno-3-3" name="__codelineno-3-3"></a><a href="#__codelineno-3-3"><span class="linenos" data-linenos="3 "></span></a>00350010  B8 00 00 00 00 00 00 00  ........
+</code></pre></div>
+<p>I can obtain the fully decrypted resource from its original version by applying the XOR transformation using a tool like Cyber Chef or via a simple python script like this:</p>
+<div class="language-python highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1"></a><a href="#__codelineno-4-1"><span class="linenos" data-linenos="1 "></span></a><span class="ch">#!/usr/bin/python</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2"></a><a href="#__codelineno-4-2"><span class="linenos" data-linenos="2 "></span></a>
+<a id="__codelineno-4-3" name="__codelineno-4-3"></a><a href="#__codelineno-4-3"><span class="linenos" data-linenos="3 "></span></a><span class="n">b</span> <span class="o">=</span> <span class="nb">bytearray</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;Lab12-02-LOCALIZATION&#39;</span><span class="p">,</span><span class="s1">&#39;rb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4"></a><a href="#__codelineno-4-4"><span class="linenos" data-linenos="4 "></span></a><span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">b</span><span class="p">)):</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5"></a><a href="#__codelineno-4-5"><span class="linenos" data-linenos="5 "></span></a>    <span class="n">b</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">^=</span> <span class="mh">0x41</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6"></a><a href="#__codelineno-4-6"><span class="linenos" data-linenos="6 "></span></a><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;Lab12-02-LOCALIZATION.decrypted&#39;</span><span class="p">,</span><span class="s1">&#39;wb&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
+</code></pre></div>
+<p>The decrypted resource is indeed a DOS executable. I will analyze it later on.</p>
+<h3 id="performing-process-hollowing-function-sub_4010ea">Performing process hollowing (function <code>sub_4010EA</code>)</h3>
+<p>After dropping and decrypting its embedded resource in memory, the malware calls the function <code>sub_4010EA</code>. Since I know (after my analysis) that this function performs process hollowing, I renamed it to <code>Sub_ProcessHollow</code>.</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1"></a><a href="#__codelineno-5-1"><span class="linenos" data-linenos="1 "></span></a>00401539 mov     edx, [ebp+lpBuffer]
+<a id="__codelineno-5-2" name="__codelineno-5-2"></a><a href="#__codelineno-5-2"><span class="linenos" data-linenos="2 "></span></a>0040153C push    edx             ; lpBuffer
+<a id="__codelineno-5-3" name="__codelineno-5-3"></a><a href="#__codelineno-5-3"><span class="linenos" data-linenos="3 "></span></a>0040153D lea     eax, [ebp+ApplicationName]
+<a id="__codelineno-5-4" name="__codelineno-5-4"></a><a href="#__codelineno-5-4"><span class="linenos" data-linenos="4 "></span></a>00401543 push    eax             ; lpApplicationName
+<a id="__codelineno-5-5" name="__codelineno-5-5"></a><a href="#__codelineno-5-5"><span class="linenos" data-linenos="5 "></span></a>00401544 call    sub_4010EA
+</code></pre></div>
+<p>This function takes two parameters:</p>
+<ul>
+<li>the full path to Windows <code>svchost.exe</code> executable (<code>lpApplicationName</code>)</li>
+<li>the pointer to the decrypted dropped resource in memory</li>
+</ul>
+<p>I renamed the pointer to the decrypted executable to <code>lpDecryptedResource</code>.</p>
+<p>The function <code>sub_4010EA</code> first checks the dropped resource for the MZ magic value (<code>0x4D 0x5A</code>) and then the PE magic value (<code>0x50 0x45</code>). The PE magic value is located at the offset specified at offset <code>0x3C</code> (the offset <code>0x3C</code> is the last field of <code>IMAGE_DOS_HEADER</code>).
+If those bytes are as expected then the program continues.</p>
+<p>By the way, the pointer to the PE header of the dropped executable is saved into <code>var_8</code> which I renamed to <code>Var_PEHeader</code>. The malware will be using this pointer later on.</p>
+<p>Now the process hollowing procedure begins. Let's dig into the details of each step:</p>
+<h4 id="step-1-creating-a-process-in-a-suspended-state">Step 1: Creating a process in a suspended state</h4>
+<p>The malware first creates a process by calling the function <code>CreateProcessA</code> (at <code>0x40115F</code>); the process executable is <code>svchost.exe</code>.</p>
+<p>As we will see shortly, the process is created in a <em>suspended state</em>. This is a clear indication that the malware is attempting to perform <strong>process hollowing</strong>: the malware will overwrite the memory space of the legit <code>svchost.exe</code> with some other malicious code that it wants to hide - most certainly, the dropped executable!</p>
+<p>This is the call to <code>CreateProcessA</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1"></a><a href="#__codelineno-6-1"><span class="linenos" data-linenos=" 1 "></span></a>00401145 lea     edx, [ebp+hProcess]
+<a id="__codelineno-6-2" name="__codelineno-6-2"></a><a href="#__codelineno-6-2"><span class="linenos" data-linenos=" 2 "></span></a>00401148 push    edx             ; lpProcessInformation
+<a id="__codelineno-6-3" name="__codelineno-6-3"></a><a href="#__codelineno-6-3"><span class="linenos" data-linenos=" 3 "></span></a>00401149 lea     eax, [ebp+StartupInfo]
+<a id="__codelineno-6-4" name="__codelineno-6-4"></a><a href="#__codelineno-6-4"><span class="linenos" data-linenos=" 4 "></span></a>0040114C push    eax             ; lpStartupInfo
+<a id="__codelineno-6-5" name="__codelineno-6-5"></a><a href="#__codelineno-6-5"><span class="linenos" data-linenos=" 5 "></span></a>0040114D push    0               ; lpCurrentDirectory
+<a id="__codelineno-6-6" name="__codelineno-6-6"></a><a href="#__codelineno-6-6"><span class="linenos" data-linenos=" 6 "></span></a>0040114F push    0               ; lpEnvironment
+<a id="__codelineno-6-7" name="__codelineno-6-7"></a><a href="#__codelineno-6-7"><span class="linenos" data-linenos=" 7 "></span></a>00401151 push    4               ; dwCreationFlags
+<a id="__codelineno-6-8" name="__codelineno-6-8"></a><a href="#__codelineno-6-8"><span class="linenos" data-linenos=" 8 "></span></a>00401153 push    0               ; bInheritHandles
+<a id="__codelineno-6-9" name="__codelineno-6-9"></a><a href="#__codelineno-6-9"><span class="linenos" data-linenos=" 9 "></span></a>00401155 push    0               ; lpThreadAttributes
+<a id="__codelineno-6-10" name="__codelineno-6-10"></a><a href="#__codelineno-6-10"><span class="linenos" data-linenos="10 "></span></a>00401157 push    0               ; lpProcessAttributes
+<a id="__codelineno-6-11" name="__codelineno-6-11"></a><a href="#__codelineno-6-11"><span class="linenos" data-linenos="11 "></span></a>00401159 push    0               ; lpCommandLine
+<a id="__codelineno-6-12" name="__codelineno-6-12"></a><a href="#__codelineno-6-12"><span class="linenos" data-linenos="12 "></span></a>0040115B mov     ecx, [ebp+lpApplicationName]
+<a id="__codelineno-6-13" name="__codelineno-6-13"></a><a href="#__codelineno-6-13"><span class="linenos" data-linenos="13 "></span></a>0040115E push    ecx             ; lpApplicationName
+<a id="__codelineno-6-14" name="__codelineno-6-14"></a><a href="#__codelineno-6-14"><span class="linenos" data-linenos="14 "></span></a>0040115F call    ds:CreateProcessA
+</code></pre></div>
+<p>The function <code>CreateProcessA</code> takes many parameters, among which:</p>
+<ul>
+<li>
+<p><code>lpApplicationName</code>: this is the name of the module to be executed, i.e. <code>svchost.exe</code></p>
+</li>
+<li>
+<p><code>dwCreationFlags</code>: these flags control the creation of the process; the value 4 means <code>CREATE_SUSPENDED</code> so <strong>the process will be created in a suspended state and will not run until the <code>ResumeThread</code> function is called</strong>.</p>
+</li>
+<li>
+<p><code>lpStartupInfo</code>: a pointer to a <code>STARTUPINFO</code> structure, passed in the <code>StartupInfo</code> variable.</p>
+</li>
+<li>
+<p><code>lpProcessInformation</code>: a pointer to a <code>PROCESS_INFORMATION</code> structure that will receive the identification information about the new proces; passed in the <code>lpProcessInformation</code> variable.</p>
+</li>
+</ul>
+<p>Let's follow the execution in OllyDbg. Before executing, I place a breakpoint at <code>0x40115F</code> (right before the call to <code>CreateProcessA</code>); if I step over to the next instruction, I can see in Process Explorer that the new process is indeed created as <em>Suspended</em>.</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/suspended.png" /></p>
+<p>I will keep the debugger paused and step over the execution as needed during the following analysis.</p>
+<h4 id="obtaining-the-imagebase-address-of-the-suspended-process">Obtaining the <code>ImageBase</code> address of the suspended process</h4>
+<p>After creating a new <code>svchost.exe</code> process in a suspended state, the malware obtains a handle to the suspended thread by calling <code>GetThreadContext</code> at <code>0x401195</code>.
+The <code>GetThreadContext</code> function is passed the <code>hThread</code> parameter, which comes from the same <code>PROCESS_INFORMATION</code> structure passed to <code>CreateProcessA</code>; this thread handle is used to interact with the suspended process.</p>
+<p>The <code>hThread</code> value is <code>0x44</code>. Other than looking in the stack view of the debugger, I can also read the thread handle in Process Hacker: just double-click on the Lab12-02.exe process, open the Handles tab and look for the Thread type. By the way, this same window also shows the Process handle value (0x34).</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/processhacker-threadhandle.png" /></p>
+<p>The <code>GetThreadContext</code> function returns the thread context in a <code>CONTEXT</code> structure which is pointed to by the <code>lpContext</code> parameter (for such a structure the program just allocated memory space by calling <code>VirtualAlloc</code> at <code>0x40117B</code>).</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1"></a><a href="#__codelineno-7-1"><span class="linenos" data-linenos="1 "></span></a>0040117B call    ds:VirtualAlloc
+<a id="__codelineno-7-2" name="__codelineno-7-2"></a><a href="#__codelineno-7-2"><span class="linenos" data-linenos="2 "></span></a>00401181 mov     [ebp+lpContext], eax
+<a id="__codelineno-7-3" name="__codelineno-7-3"></a><a href="#__codelineno-7-3"><span class="linenos" data-linenos="3 "></span></a>00401184 mov     edx, [ebp+lpContext]
+<a id="__codelineno-7-4" name="__codelineno-7-4"></a><a href="#__codelineno-7-4"><span class="linenos" data-linenos="4 "></span></a>00401187 mov     dword ptr [edx], 10007h
+<a id="__codelineno-7-5" name="__codelineno-7-5"></a><a href="#__codelineno-7-5"><span class="linenos" data-linenos="5 "></span></a>0040118D mov     eax, [ebp+lpContext]
+<a id="__codelineno-7-6" name="__codelineno-7-6"></a><a href="#__codelineno-7-6"><span class="linenos" data-linenos="6 "></span></a>00401190 push    eax             ; lpContext
+<a id="__codelineno-7-7" name="__codelineno-7-7"></a><a href="#__codelineno-7-7"><span class="linenos" data-linenos="7 "></span></a>00401191 mov     ecx, [ebp+hProcess.hThread]
+<a id="__codelineno-7-8" name="__codelineno-7-8"></a><a href="#__codelineno-7-8"><span class="linenos" data-linenos="8 "></span></a>00401194 push    ecx             ; hThread
+<a id="__codelineno-7-9" name="__codelineno-7-9"></a><a href="#__codelineno-7-9"><span class="linenos" data-linenos="9 "></span></a>00401195 call    ds:GetThreadContext
+</code></pre></div>
+<p>After that, the malware uses the <code>CONTEXT</code> structure (pointed to by <code>lpContext</code>) in a call to <code>ReadProcessMemory</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1"></a><a href="#__codelineno-8-1"><span class="linenos" data-linenos=" 1 "></span></a>004011B8 push    0               ; lpNumberOfBytesRead
+<a id="__codelineno-8-2" name="__codelineno-8-2"></a><a href="#__codelineno-8-2"><span class="linenos" data-linenos=" 2 "></span></a>004011BA push    4               ; nSize
+<a id="__codelineno-8-3" name="__codelineno-8-3"></a><a href="#__codelineno-8-3"><span class="linenos" data-linenos=" 3 "></span></a>004011BC lea     edx, [ebp+Buffer]
+<a id="__codelineno-8-4" name="__codelineno-8-4"></a><a href="#__codelineno-8-4"><span class="linenos" data-linenos=" 4 "></span></a>004011BF push    edx             ; lpBuffer
+<a id="__codelineno-8-5" name="__codelineno-8-5"></a><a href="#__codelineno-8-5"><span class="linenos" data-linenos=" 5 "></span></a>004011C0 mov     eax, [ebp+lpContext]
+<a id="__codelineno-8-6" name="__codelineno-8-6"></a><a href="#__codelineno-8-6"><span class="linenos" data-linenos=" 6 "></span></a>004011C3 mov     ecx, [eax+0A4h]
+<a id="__codelineno-8-7" name="__codelineno-8-7"></a><a href="#__codelineno-8-7"><span class="linenos" data-linenos=" 7 "></span></a>004011C9 add     ecx, 8
+<a id="__codelineno-8-8" name="__codelineno-8-8"></a><a href="#__codelineno-8-8"><span class="linenos" data-linenos=" 8 "></span></a>004011CC push    ecx             ; lpBaseAddress
+<a id="__codelineno-8-9" name="__codelineno-8-9"></a><a href="#__codelineno-8-9"><span class="linenos" data-linenos=" 9 "></span></a>004011CD mov     edx, [ebp+hProcess.hProcess]
+<a id="__codelineno-8-10" name="__codelineno-8-10"></a><a href="#__codelineno-8-10"><span class="linenos" data-linenos="10 "></span></a>004011D0 push    edx             ; hProcess
+<a id="__codelineno-8-11" name="__codelineno-8-11"></a><a href="#__codelineno-8-11"><span class="linenos" data-linenos="11 "></span></a>004011D1 call    ds:ReadProcessMemory
+</code></pre></div>
+<p>Here the malware is reading 4 bytes (<code>nSize</code> = 4) from the memory space of the <code>svchost.exe</code> process (<code>hProcess</code> = 0x34) starting at the <code>lpBaseAddress</code> address.
+The <code>lpBaseAddress</code> is calculated as follows:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1"></a><a href="#__codelineno-9-1"><span class="linenos" data-linenos="1 "></span></a>lpBaseAddress = lpContext + 0xA4 + 0x8
+</code></pre></div>
+<p>What is this address pointing to?</p>
+<p>To answer this question, we need to understand the <code>CONTEXT</code> structure.</p>
+<p>So let's add a new structure in IDA Pro: open the Structures tab and press the <code>Ins</code> key to add a new structure; then click on <code>Add standard structure</code>, select the <code>CONTEXT</code> type name and click OK.
+In the Structures tab double-click the <code>CONTEXT</code> structure to expand it; at offset <code>0xA4</code> we read <code>Ebx</code>, so this offset references the EBX register of the thread.</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/context-structure.png" /></p>
+<p>Now in the Assembly view, at location <code>0x4011C3</code>, if we right-click over <code>0A4h</code> we can expand that value to read as the following:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1"></a><a href="#__codelineno-10-1"><span class="linenos" data-linenos="1 "></span></a>004011C3 mov     ecx, [eax+CONTEXT.Ebx]
+</code></pre></div>
+<p>The EBX register of a newly created process always contains a pointer to the <strong>Process Environment Block (PEB)</strong> data structure. The PEB structure is not part of the standard IDA Pro data structures but we can search on the Internet to discover that <strong>at offset <code>0x8</code> there is a pointer to the <code>ImageBaseAddress</code></strong> (you may refer to the <a href="https://www.aldeid.com/wiki/PEB-Process-Environment-Block">aldeid blog</a>).</p>
+<p>So the <code>lpBaseAddress</code> is pointing to the <code>ImageBaseAddress</code>, that is to <strong>the start of the loaded executable</strong> (<code>svchost.exe</code>).</p>
+<p>The <code>lpBaseAddress</code> value is <code>0x7FFDF008</code>; I can inspect the memory area of the suspended <code>svchost.exe</code> also using the Memory tab of Process Hacker: the PEB is showed at address <code>0x7FFDF000</code> and at offset <code>0x8</code> I can see the <code>ImageBaseAddress</code> pointer value of <code>0x01000000</code> (<code>01</code> followed by six zeroes).</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/peb.png" /></p>
+<p>Then reading 4 bytes starting at the <code>lpBaseAddress</code>, will place the ImageBase address of the suspended process (ie: <code>0x01000000</code>) into the <code>Buffer</code> variable. This is the dump view of the <code>Buffer</code> variable after the call to <code>ReadProcessMemory</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1"></a><a href="#__codelineno-11-1"><span class="linenos" data-linenos="1 "></span></a>0012FAFC  00 00 00 01 00 00 00 00  ........
+</code></pre></div>
+<h4 id="step-2-unmapping-the-suspended-process-from-memory">Step 2: Unmapping the suspended process from memory</h4>
+<p>The program manually resolves the import <code>NtUnmapViewOfSection</code> using <code>GetProcAddress</code> at <code>0x4011E8</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1"></a><a href="#__codelineno-12-1"><span class="linenos" data-linenos="1 "></span></a>004011D7 push    offset ProcName ; &quot;NtUnmapViewOfSection&quot;
+<a id="__codelineno-12-2" name="__codelineno-12-2"></a><a href="#__codelineno-12-2"><span class="linenos" data-linenos="2 "></span></a>004011DC push    offset ModuleName ; &quot;ntdll.dll&quot;
+<a id="__codelineno-12-3" name="__codelineno-12-3"></a><a href="#__codelineno-12-3"><span class="linenos" data-linenos="3 "></span></a>004011E1 call    ds:GetModuleHandleA
+<a id="__codelineno-12-4" name="__codelineno-12-4"></a><a href="#__codelineno-12-4"><span class="linenos" data-linenos="4 "></span></a>004011E7 push    eax             ; hModule
+<a id="__codelineno-12-5" name="__codelineno-12-5"></a><a href="#__codelineno-12-5"><span class="linenos" data-linenos="5 "></span></a>004011E8 call    ds:GetProcAddress
+<a id="__codelineno-12-6" name="__codelineno-12-6"></a><a href="#__codelineno-12-6"><span class="linenos" data-linenos="6 "></span></a>004011EE mov     [ebp+var_64], eax
+</code></pre></div>
+<p>The address of the <code>NtUnmapViewOfSection</code> function is placed in a variable named <code>var_64</code>; the function is then called at <code>0x401206</code>, passing in the <code>ImageBase</code> address of the suspended process (<code>Buffer</code> = <code>0x01000000</code>) and the handle to that same process (<code>hProcess</code>) as parameters:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1"></a><a href="#__codelineno-13-1"><span class="linenos" data-linenos="1 "></span></a>004011FE mov     eax, [ebp+Buffer] ; ImageBase address of suspended process
+<a id="__codelineno-13-2" name="__codelineno-13-2"></a><a href="#__codelineno-13-2"><span class="linenos" data-linenos="2 "></span></a>00401201 push    eax
+<a id="__codelineno-13-3" name="__codelineno-13-3"></a><a href="#__codelineno-13-3"><span class="linenos" data-linenos="3 "></span></a>00401202 mov     ecx, [ebp+hProcess.hProcess]
+<a id="__codelineno-13-4" name="__codelineno-13-4"></a><a href="#__codelineno-13-4"><span class="linenos" data-linenos="4 "></span></a>00401205 push    ecx
+<a id="__codelineno-13-5" name="__codelineno-13-5"></a><a href="#__codelineno-13-5"><span class="linenos" data-linenos="5 "></span></a>00401206 call    [ebp+var_64]    ; call NtUnmapViewOfSection
+</code></pre></div>
+<p>The malware calls <code>NtUnmapViewOfSection</code> to <strong>unmap the suspended process from memory</strong>.</p>
+<p>Let's step over and pause the debugger at <code>0x401206</code>. This is how the memory of <code>svchost.exe</code> appears in Process Hacker right before the call to <code>NtUnmapViewOfSection</code>:</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/memory-svchost-before.png" /></p>
+<p>Let the call execute; now hit the refresh button in the Mememory tab of Process Hacker and see that the memory area of <code>svchost.exe</code> is gone:</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/memory-svchost-after.png" /></p>
+<h4 id="step-3-allocating-new-memory-space-within-the-suspended-process">Step 3: Allocating new memory space within the suspended process</h4>
+<p>Now the malware allocates new memory within the address space of the suspended process (<code>hProcess</code>). This is the call to <code>VirtualAllocEx</code>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1"></a><a href="#__codelineno-14-1"><span class="linenos" data-linenos=" 1 "></span></a>00401209 push    40h             ; flProtect
+<a id="__codelineno-14-2" name="__codelineno-14-2"></a><a href="#__codelineno-14-2"><span class="linenos" data-linenos=" 2 "></span></a>0040120B push    3000h           ; flAllocationType
+<a id="__codelineno-14-3" name="__codelineno-14-3"></a><a href="#__codelineno-14-3"><span class="linenos" data-linenos=" 3 "></span></a>00401210 mov     edx, [ebp+Var_PEHeader]
+<a id="__codelineno-14-4" name="__codelineno-14-4"></a><a href="#__codelineno-14-4"><span class="linenos" data-linenos=" 4 "></span></a>00401213 mov     eax, [edx+50h]
+<a id="__codelineno-14-5" name="__codelineno-14-5"></a><a href="#__codelineno-14-5"><span class="linenos" data-linenos=" 5 "></span></a>00401216 push    eax             ; dwSize
+<a id="__codelineno-14-6" name="__codelineno-14-6"></a><a href="#__codelineno-14-6"><span class="linenos" data-linenos=" 6 "></span></a>00401217 mov     ecx, [ebp+Var_PEHeader]
+<a id="__codelineno-14-7" name="__codelineno-14-7"></a><a href="#__codelineno-14-7"><span class="linenos" data-linenos=" 7 "></span></a>0040121A mov     edx, [ecx+34h]
+<a id="__codelineno-14-8" name="__codelineno-14-8"></a><a href="#__codelineno-14-8"><span class="linenos" data-linenos=" 8 "></span></a>0040121D push    edx             ; lpAddress
+<a id="__codelineno-14-9" name="__codelineno-14-9"></a><a href="#__codelineno-14-9"><span class="linenos" data-linenos=" 9 "></span></a>0040121E mov     eax, [ebp+hProcess.hProcess]
+<a id="__codelineno-14-10" name="__codelineno-14-10"></a><a href="#__codelineno-14-10"><span class="linenos" data-linenos="10 "></span></a>00401221 push    eax             ; hProcess
+<a id="__codelineno-14-11" name="__codelineno-14-11"></a><a href="#__codelineno-14-11"><span class="linenos" data-linenos="11 "></span></a>00401222 call    ds:VirtualAllocEx
+<a id="__codelineno-14-12" name="__codelineno-14-12"></a><a href="#__codelineno-14-12"><span class="linenos" data-linenos="12 "></span></a>00401228 mov     [ebp+lpBaseAddress], eax
+</code></pre></div>
+<p>Both <code>lpAddress</code> and <code>dwSize</code> are valued as offsets of the PE header of the dropped executable, respectively <code>0x34</code> and <code>0x50</code> (the pointer to the PE header was saved in <code>Var_PEHeader</code>). Looking at the PE file format documentation, we can verify that:</p>
+<ul>
+<li>offset <code>0x34</code> corresponds to the ImageBase address</li>
+<li>offset <code>0x50</code> corresponds to the SizeOfImage</li>
+</ul>
+<p>We can verify these offsets also opening the decrypted dropped executable with PEview (or other similar tool) and looking for the <code>ImageBase</code> and <code>SizeOfImage</code> fields in the <code>IMAGE_OPTIONAL_HEADER</code> header.</p>
+<p><em>Note: in order to locate the offsets relative to the PE Header, remember that the PE Header itself starts at the offset given in the last field of the <code>IMAGE_DOS_HEADER</code> which is at offset <code>0x3C</code> relative to the start of the PE file; so in this case the <code>ImageBase</code> field is at offset <code>0xE0</code>+<code>0x34</code>=<code>0x114</code> relative to the start of the PE file, and the <code>SizeOfImage</code> field is at offset <code>0x130</code>.</em></p>
+<p>We can add new standard structures in IDA Pro: <code>IMAGE_DOS_HEADER</code>, <code>IMAGE_NT_HEADERS</code> and <code>IMAGE_SECTION_HEADER</code> (I will use the latter lately). Now we can ask IDA Pro to display those offsets in a much more readable way by right-clicking on them and choosing the appropriate offset from the <code>Structure offset</code> list. Then the previous code block would appear like the following:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1"></a><a href="#__codelineno-15-1"><span class="linenos" data-linenos=" 1 "></span></a>00401209 push    40h             ; flProtect
+<a id="__codelineno-15-2" name="__codelineno-15-2"></a><a href="#__codelineno-15-2"><span class="linenos" data-linenos=" 2 "></span></a>0040120B push    3000h           ; flAllocationType
+<a id="__codelineno-15-3" name="__codelineno-15-3"></a><a href="#__codelineno-15-3"><span class="linenos" data-linenos=" 3 "></span></a>00401210 mov     edx, [ebp+Var_PEHeader]
+<a id="__codelineno-15-4" name="__codelineno-15-4"></a><a href="#__codelineno-15-4"><span class="linenos" data-linenos=" 4 "></span></a>00401213 mov     eax, [edx+IMAGE_NT_HEADERS.OptionalHeader.SizeOfImage]
+<a id="__codelineno-15-5" name="__codelineno-15-5"></a><a href="#__codelineno-15-5"><span class="linenos" data-linenos=" 5 "></span></a>00401216 push    eax             ; dwSize
+<a id="__codelineno-15-6" name="__codelineno-15-6"></a><a href="#__codelineno-15-6"><span class="linenos" data-linenos=" 6 "></span></a>00401217 mov     ecx, [ebp+Var_PEHeader]
+<a id="__codelineno-15-7" name="__codelineno-15-7"></a><a href="#__codelineno-15-7"><span class="linenos" data-linenos=" 7 "></span></a>0040121A mov     edx, [ecx+IMAGE_NT_HEADERS.OptionalHeader.ImageBase]
+<a id="__codelineno-15-8" name="__codelineno-15-8"></a><a href="#__codelineno-15-8"><span class="linenos" data-linenos=" 8 "></span></a>0040121D push    edx             ; lpAddress
+<a id="__codelineno-15-9" name="__codelineno-15-9"></a><a href="#__codelineno-15-9"><span class="linenos" data-linenos=" 9 "></span></a>0040121E mov     eax, [ebp+hProcess.hProcess]
+<a id="__codelineno-15-10" name="__codelineno-15-10"></a><a href="#__codelineno-15-10"><span class="linenos" data-linenos="10 "></span></a>00401221 push    eax             ; hProcess
+<a id="__codelineno-15-11" name="__codelineno-15-11"></a><a href="#__codelineno-15-11"><span class="linenos" data-linenos="11 "></span></a>00401222 call    ds:VirtualAllocEx
+<a id="__codelineno-15-12" name="__codelineno-15-12"></a><a href="#__codelineno-15-12"><span class="linenos" data-linenos="12 "></span></a>00401228 mov     [ebp+lpBaseAddress], eax
+</code></pre></div>
+<p>So, back to our malicious program, the call to the <code>VirtualAllocEx</code> function will allocate a number of <code>SizeOfImage</code> bytes (0x7000) starting at <code>ImageBase</code> address (<code>0x400000</code>). Since the malware is going to write into this new memory space, the allocation is done with <code>PAGE_EXECUTE_READWRITE</code> permissions (<code>flProtect</code> = <code>0x40</code>).</p>
+<p>After the call executes, we can verify in Process Hacker that there is a new memory region at base address <code>0x400000</code> which is initialized to zeroes. Notice that the permissions are set to RWX:</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/memory-svchost-newallocated.png" /></p>
+<p>The pointer to the newly allocated memory region is saved into <code>lpBaseAddress</code>.</p>
+<h4 id="step-4-writing-the-malicious-code-into-the-suspended-process">Step 4: Writing the malicious code into the suspended process</h4>
+<p>After unmapping the original <code>svchost.exe</code> image from memory and allocating a new memory region within the suspended process, the malware writes its malicious load into that memory region.</p>
+<p>The program first writes the executable headers:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1"></a><a href="#__codelineno-16-1"><span class="linenos" data-linenos=" 1 "></span></a>0040123C push    0               ; lpNumberOfBytesWritten
+<a id="__codelineno-16-2" name="__codelineno-16-2"></a><a href="#__codelineno-16-2"><span class="linenos" data-linenos=" 2 "></span></a>0040123E mov     ecx, [ebp+Var_PEHeader]
+<a id="__codelineno-16-3" name="__codelineno-16-3"></a><a href="#__codelineno-16-3"><span class="linenos" data-linenos=" 3 "></span></a>00401241 mov     edx, [ecx+IMAGE_NT_HEADERS.OptionalHeader.SizeOfHeaders]
+<a id="__codelineno-16-4" name="__codelineno-16-4"></a><a href="#__codelineno-16-4"><span class="linenos" data-linenos=" 4 "></span></a>00401244 push    edx             ; nSize
+<a id="__codelineno-16-5" name="__codelineno-16-5"></a><a href="#__codelineno-16-5"><span class="linenos" data-linenos=" 5 "></span></a>00401245 mov     eax, [ebp+lpDecryptedResource]
+<a id="__codelineno-16-6" name="__codelineno-16-6"></a><a href="#__codelineno-16-6"><span class="linenos" data-linenos=" 6 "></span></a>00401248 push    eax             ; lpBuffer
+<a id="__codelineno-16-7" name="__codelineno-16-7"></a><a href="#__codelineno-16-7"><span class="linenos" data-linenos=" 7 "></span></a>00401249 mov     ecx, [ebp+lpBaseAddress]
+<a id="__codelineno-16-8" name="__codelineno-16-8"></a><a href="#__codelineno-16-8"><span class="linenos" data-linenos=" 8 "></span></a>0040124C push    ecx             ; lpBaseAddress
+<a id="__codelineno-16-9" name="__codelineno-16-9"></a><a href="#__codelineno-16-9"><span class="linenos" data-linenos=" 9 "></span></a>0040124D mov     edx, [ebp+hProcess.hProcess]
+<a id="__codelineno-16-10" name="__codelineno-16-10"></a><a href="#__codelineno-16-10"><span class="linenos" data-linenos="10 "></span></a>00401250 push    edx             ; hProcess
+<a id="__codelineno-16-11" name="__codelineno-16-11"></a><a href="#__codelineno-16-11"><span class="linenos" data-linenos="11 "></span></a>00401251 call    ds:WriteProcessMemory
+</code></pre></div>
+<p>The call to <code>WriteProcessMemory</code> writes a number of <code>SizeOfHeaders</code> bytes from the <code>lpDecryptedResource</code> executable into the just-allocated memory region pointed to by <code>lpBaseAddress</code>.</p>
+<p>I can verify looking in Process Hacker:</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/memory-svchost-written.png" /></p>
+<p>Next, the program cycles thru each PE section, writing the raw bytes of each section.</p>
+<p><img alt="WriteProcessMemory loop" src="../media/pma/lab-12-02/writeprocessmemory-loop.png" /></p>
+<p>This is the loop body:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1"></a><a href="#__codelineno-17-1"><span class="linenos" data-linenos=" 1 "></span></a>00401277 mov     eax, [ebp+Var_lpDecryptedResource]
+<a id="__codelineno-17-2" name="__codelineno-17-2"></a><a href="#__codelineno-17-2"><span class="linenos" data-linenos=" 2 "></span></a>0040127A mov     ecx, [ebp+lpDecryptedResource]
+<a id="__codelineno-17-3" name="__codelineno-17-3"></a><a href="#__codelineno-17-3"><span class="linenos" data-linenos=" 3 "></span></a>0040127D add     ecx, [eax+IMAGE_DOS_HEADER.e_lfanew]
+<a id="__codelineno-17-4" name="__codelineno-17-4"></a><a href="#__codelineno-17-4"><span class="linenos" data-linenos=" 4 "></span></a>00401280 mov     edx, [ebp+Var_LoopCounter]
+<a id="__codelineno-17-5" name="__codelineno-17-5"></a><a href="#__codelineno-17-5"><span class="linenos" data-linenos=" 5 "></span></a>00401283 imul    edx, 28h
+<a id="__codelineno-17-6" name="__codelineno-17-6"></a><a href="#__codelineno-17-6"><span class="linenos" data-linenos=" 6 "></span></a>00401286 lea     eax, [ecx+edx+0F8h] ; 0xF8 is the PE Header offset which
+<a id="__codelineno-17-7" name="__codelineno-17-7"></a><a href="#__codelineno-17-7"><span class="linenos" data-linenos=" 7 "></span></a>00401286                         ;     the first section starts at
+<a id="__codelineno-17-8" name="__codelineno-17-8"></a><a href="#__codelineno-17-8"><span class="linenos" data-linenos=" 8 "></span></a>0040128D mov     [ebp+Var_Section], eax
+<a id="__codelineno-17-9" name="__codelineno-17-9"></a><a href="#__codelineno-17-9"><span class="linenos" data-linenos=" 9 "></span></a>00401290 push    0               ; lpNumberOfBytesWritten
+<a id="__codelineno-17-10" name="__codelineno-17-10"></a><a href="#__codelineno-17-10"><span class="linenos" data-linenos="10 "></span></a>00401292 mov     ecx, [ebp+Var_Section]
+<a id="__codelineno-17-11" name="__codelineno-17-11"></a><a href="#__codelineno-17-11"><span class="linenos" data-linenos="11 "></span></a>00401295 mov     edx, [ecx+IMAGE_SECTION_HEADER.SizeOfRawData]
+<a id="__codelineno-17-12" name="__codelineno-17-12"></a><a href="#__codelineno-17-12"><span class="linenos" data-linenos="12 "></span></a>00401298 push    edx             ; nSize
+<a id="__codelineno-17-13" name="__codelineno-17-13"></a><a href="#__codelineno-17-13"><span class="linenos" data-linenos="13 "></span></a>00401299 mov     eax, [ebp+Var_Section]
+<a id="__codelineno-17-14" name="__codelineno-17-14"></a><a href="#__codelineno-17-14"><span class="linenos" data-linenos="14 "></span></a>0040129C mov     ecx, [ebp+lpDecryptedResource]
+<a id="__codelineno-17-15" name="__codelineno-17-15"></a><a href="#__codelineno-17-15"><span class="linenos" data-linenos="15 "></span></a>0040129F add     ecx, [eax+IMAGE_SECTION_HEADER.PointerToRawData]
+<a id="__codelineno-17-16" name="__codelineno-17-16"></a><a href="#__codelineno-17-16"><span class="linenos" data-linenos="16 "></span></a>004012A2 push    ecx             ; lpBuffer
+<a id="__codelineno-17-17" name="__codelineno-17-17"></a><a href="#__codelineno-17-17"><span class="linenos" data-linenos="17 "></span></a>004012A3 mov     edx, [ebp+Var_Section]
+<a id="__codelineno-17-18" name="__codelineno-17-18"></a><a href="#__codelineno-17-18"><span class="linenos" data-linenos="18 "></span></a>004012A6 mov     eax, [ebp+lpBaseAddress]
+<a id="__codelineno-17-19" name="__codelineno-17-19"></a><a href="#__codelineno-17-19"><span class="linenos" data-linenos="19 "></span></a>004012A9 add     eax, [edx+IMAGE_SECTION_HEADER.VirtualAddress]
+<a id="__codelineno-17-20" name="__codelineno-17-20"></a><a href="#__codelineno-17-20"><span class="linenos" data-linenos="20 "></span></a>004012AC push    eax             ; lpBaseAddress
+<a id="__codelineno-17-21" name="__codelineno-17-21"></a><a href="#__codelineno-17-21"><span class="linenos" data-linenos="21 "></span></a>004012AD mov     ecx, [ebp+hProcess.hProcess]
+<a id="__codelineno-17-22" name="__codelineno-17-22"></a><a href="#__codelineno-17-22"><span class="linenos" data-linenos="22 "></span></a>004012B0 push    ecx             ; hProcess
+<a id="__codelineno-17-23" name="__codelineno-17-23"></a><a href="#__codelineno-17-23"><span class="linenos" data-linenos="23 "></span></a>004012B1 call    ds:WriteProcessMemory
+</code></pre></div>
+<p>For each PE section, the <code>WriteProcessMemory</code> function writes the section's raw bytes into the newly allocated memory region, starting at the address specified by the <code>IMAGE_SECTION_HEADER.VirtualAddress</code> field of the section header.</p>
+<p>I can inspect the process memory with Process Hacker to verify that each section is written (place a breakpoint at <code>0x4012B7</code>).</p>
+<p>Once finished writing the sections, the program updates the <code>ImageBaseAddress</code> in the PEB with the proper <code>ImageBase</code> value read from the dropped executable PE headers:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1"></a><a href="#__codelineno-18-1"><span class="linenos" data-linenos=" 1 "></span></a>004012B9 push    0
+<a id="__codelineno-18-2" name="__codelineno-18-2"></a><a href="#__codelineno-18-2"><span class="linenos" data-linenos=" 2 "></span></a>004012BB push    4               ; nSize
+<a id="__codelineno-18-3" name="__codelineno-18-3"></a><a href="#__codelineno-18-3"><span class="linenos" data-linenos=" 3 "></span></a>004012BD mov     edx, [ebp+Var_PEHeader]
+<a id="__codelineno-18-4" name="__codelineno-18-4"></a><a href="#__codelineno-18-4"><span class="linenos" data-linenos=" 4 "></span></a>004012C0 add     edx, IMAGE_NT_HEADERS.OptionalHeader.ImageBase
+<a id="__codelineno-18-5" name="__codelineno-18-5"></a><a href="#__codelineno-18-5"><span class="linenos" data-linenos=" 5 "></span></a>004012C3 push    edx             ; lpBuffer
+<a id="__codelineno-18-6" name="__codelineno-18-6"></a><a href="#__codelineno-18-6"><span class="linenos" data-linenos=" 6 "></span></a>004012C4 mov     eax, [ebp+lpContext]
+<a id="__codelineno-18-7" name="__codelineno-18-7"></a><a href="#__codelineno-18-7"><span class="linenos" data-linenos=" 7 "></span></a>004012C7 mov     ecx, [eax+CONTEXT.Ebx] ; PEB
+<a id="__codelineno-18-8" name="__codelineno-18-8"></a><a href="#__codelineno-18-8"><span class="linenos" data-linenos=" 8 "></span></a>004012CD add     ecx, 8          ;        ImageBaseAddress
+<a id="__codelineno-18-9" name="__codelineno-18-9"></a><a href="#__codelineno-18-9"><span class="linenos" data-linenos=" 9 "></span></a>004012D0 push    ecx             ; lpBaseAddress
+<a id="__codelineno-18-10" name="__codelineno-18-10"></a><a href="#__codelineno-18-10"><span class="linenos" data-linenos="10 "></span></a>004012D1 mov     edx, [ebp+hProcess.hProcess]
+<a id="__codelineno-18-11" name="__codelineno-18-11"></a><a href="#__codelineno-18-11"><span class="linenos" data-linenos="11 "></span></a>004012D4 push    edx             ; hProcess
+<a id="__codelineno-18-12" name="__codelineno-18-12"></a><a href="#__codelineno-18-12"><span class="linenos" data-linenos="12 "></span></a>004012D5 call    ds:WriteProcessMemory
+</code></pre></div>
+<h4 id="steps-5-and-6-setting-the-entry-point-and-resuming-the-thread">Steps 5 and 6: Setting the entry point and resuming the thread</h4>
+<p>Then the malware uses <code>SetThreadContext</code> to set the <code>EAX</code> register to the entry point of the malicious executable that was just loaded into the suspended process, so that its execution will resume from there.</p>
+<p>The pointer to the EAX register is found in the <code>CONTEXT</code> structure at offset <code>0xB0</code> (instruction at <code>0x4012E7</code>).</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1"></a><a href="#__codelineno-19-1"><span class="linenos" data-linenos=" 1 "></span></a>004012DB mov     eax, [ebp+Var_PEHeader]
+<a id="__codelineno-19-2" name="__codelineno-19-2"></a><a href="#__codelineno-19-2"><span class="linenos" data-linenos=" 2 "></span></a>004012DE mov     ecx, [ebp+lpBaseAddress]
+<a id="__codelineno-19-3" name="__codelineno-19-3"></a><a href="#__codelineno-19-3"><span class="linenos" data-linenos=" 3 "></span></a>004012E1 add     ecx, [eax+IMAGE_NT_HEADERS.OptionalHeader.AddressOfEntryPoint]
+<a id="__codelineno-19-4" name="__codelineno-19-4"></a><a href="#__codelineno-19-4"><span class="linenos" data-linenos=" 4 "></span></a>004012E4 mov     edx, [ebp+lpContext]
+<a id="__codelineno-19-5" name="__codelineno-19-5"></a><a href="#__codelineno-19-5"><span class="linenos" data-linenos=" 5 "></span></a>004012E7 mov     [edx+CONTEXT.Eax], ecx
+<a id="__codelineno-19-6" name="__codelineno-19-6"></a><a href="#__codelineno-19-6"><span class="linenos" data-linenos=" 6 "></span></a>004012ED mov     eax, [ebp+lpContext]
+<a id="__codelineno-19-7" name="__codelineno-19-7"></a><a href="#__codelineno-19-7"><span class="linenos" data-linenos=" 7 "></span></a>004012F0 push    eax             ; lpContext
+<a id="__codelineno-19-8" name="__codelineno-19-8"></a><a href="#__codelineno-19-8"><span class="linenos" data-linenos=" 8 "></span></a>004012F1 mov     ecx, [ebp+hProcess.hThread]
+<a id="__codelineno-19-9" name="__codelineno-19-9"></a><a href="#__codelineno-19-9"><span class="linenos" data-linenos=" 9 "></span></a>004012F4 push    ecx             ; hThread
+<a id="__codelineno-19-10" name="__codelineno-19-10"></a><a href="#__codelineno-19-10"><span class="linenos" data-linenos="10 "></span></a>004012F5 call    ds:SetThreadContext
+</code></pre></div>
+<p>And finally the thread is resumed!</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1"></a><a href="#__codelineno-20-1"><span class="linenos" data-linenos="1 "></span></a>004012FB mov     edx, [ebp+hProcess.hThread]
+<a id="__codelineno-20-2" name="__codelineno-20-2"></a><a href="#__codelineno-20-2"><span class="linenos" data-linenos="2 "></span></a>004012FE push    edx             ; hThread
+<a id="__codelineno-20-3" name="__codelineno-20-3"></a><a href="#__codelineno-20-3"><span class="linenos" data-linenos="3 "></span></a>004012FF call    ds:ResumeThread
+</code></pre></div>
+<p>Wow, that's how process hollowing works under the hood!</p>
+<h2 id="analysis-of-the-dropped-executable">Analysis of the dropped executable</h2>
+<p>I'll give hear a brief explanation of what the dropped executable does as well.</p>
+<p>These are its hashes:</p>
+<table>
+<thead>
+<tr>
+<th>hash</th>
+<th>value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>md5</td>
+<td>a7f21e412022554d187d6a876a3c08ac</td>
+</tr>
+<tr>
+<td>sha1</td>
+<td>70e39bdfcaa4bcf0021311e8298266e527cf7c97</td>
+</tr>
+<tr>
+<td>sha256</td>
+<td>9b683d2fda7ca7adcc043e4412271009a0e115ca55f9a718c385a3f46b57ae6b</td>
+</tr>
+</tbody>
+</table>
+<p>A quick analysis of the strings and the imports is sufficient to infer that the dropped executable is a <em>keylogger</em>.</p>
+<p>The following strings suggest that the malware may perform some keylogging activity:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1"></a><a href="#__codelineno-21-1"><span class="linenos" data-linenos="1 "></span></a>practicalmalwareanalysis.log
+<a id="__codelineno-21-2" name="__codelineno-21-2"></a><a href="#__codelineno-21-2"><span class="linenos" data-linenos="2 "></span></a>[SHIFT]
+<a id="__codelineno-21-3" name="__codelineno-21-3"></a><a href="#__codelineno-21-3"><span class="linenos" data-linenos="3 "></span></a>[ENTER]
+<a id="__codelineno-21-4" name="__codelineno-21-4"></a><a href="#__codelineno-21-4"><span class="linenos" data-linenos="4 "></span></a>[BACKSPACE]
+<a id="__codelineno-21-5" name="__codelineno-21-5"></a><a href="#__codelineno-21-5"><span class="linenos" data-linenos="5 "></span></a>[TAB]
+<a id="__codelineno-21-6" name="__codelineno-21-6"></a><a href="#__codelineno-21-6"><span class="linenos" data-linenos="6 "></span></a>[CTRL]
+<a id="__codelineno-21-7" name="__codelineno-21-7"></a><a href="#__codelineno-21-7"><span class="linenos" data-linenos="7 "></span></a>[DEL]
+<a id="__codelineno-21-8" name="__codelineno-21-8"></a><a href="#__codelineno-21-8"><span class="linenos" data-linenos="8 "></span></a>[CAPS LOCK]
+</code></pre></div>
+<p>The following imported functions are a clear indication that the malware is performing <strong>hook injection</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1"></a><a href="#__codelineno-22-1"><span class="linenos" data-linenos="1 "></span></a>SetWindowsHookExA
+<a id="__codelineno-22-2" name="__codelineno-22-2"></a><a href="#__codelineno-22-2"><span class="linenos" data-linenos="2 "></span></a>CallNextHookEx
+<a id="__codelineno-22-3" name="__codelineno-22-3"></a><a href="#__codelineno-22-3"><span class="linenos" data-linenos="3 "></span></a>UnhookWindowsHookEx
+</code></pre></div>
+<p>Hook injection is a technique that abuses Windows hooks to intercept messages destined for applications and is frequently used by keyloggers.</p>
+<p>The following imports support the keylogger hypothesis:</p>
+<div class="language-text highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1"></a><a href="#__codelineno-23-1"><span class="linenos" data-linenos="1 "></span></a>GetWindowTextA
+<a id="__codelineno-23-2" name="__codelineno-23-2"></a><a href="#__codelineno-23-2"><span class="linenos" data-linenos="2 "></span></a>GetForegroundWindow
+<a id="__codelineno-23-3" name="__codelineno-23-3"></a><a href="#__codelineno-23-3"><span class="linenos" data-linenos="3 "></span></a>WriteFile
+<a id="__codelineno-23-4" name="__codelineno-23-4"></a><a href="#__codelineno-23-4"><span class="linenos" data-linenos="4 "></span></a>CreateFileA
+</code></pre></div>
+<p>Disassembling the dropped executable with IDA Pro confirms that the sample is indeed a keylogger that hooks to the <code>WH_KEYBOARD_LL</code> event (at <code>0x401058</code>).</p>
+<p>The <code>main</code> function is responsible for performing the hooking.</p>
+<p>The <code>sub_4010C7</code> routine takes care of the keylogging functionality. A quick analysis of this function reveals that the keys pressed are written to a file named <code>practicalmalwareanalysis.log</code>, along with the name of the application window they are pressed in.</p>
+<p>I won't go into further details here.</p>
+<h2 id="lets-make-it-run">Let's make it run</h2>
+<p>Let's fire a complete run of the malware!</p>
+<p>how can it be detected?</p>
+<p>That's all!</p>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; iosonogio
+    </div>
+  
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.indexes", "navigation.sections"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.c8d2eff1.min.js"></script>
+      
+    
+  </body>
+</html>
