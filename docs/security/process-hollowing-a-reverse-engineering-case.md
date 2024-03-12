@@ -3,6 +3,8 @@ description: "This is an in-depth analysis of how process hollowing works from t
 date: 2019-04-28
 tags:
   - malware
+visibility:
+  - private
 ---
 
 # Process Hollowing: a reverse engineering case

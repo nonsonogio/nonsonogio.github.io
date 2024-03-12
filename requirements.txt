@@ -3,3 +3,4 @@ mkdocs-material
 mkdocs-awesome-pages-plugin
 mkdocs-categories-plugin
 mkdocs-ezlinks-plugin
+mkdocs-file-filter-plugin

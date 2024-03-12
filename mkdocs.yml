@@ -1,6 +1,8 @@
-site_name: "@iosonogio"
-
+site_name: '@iosonogio'
+site_description: my digital garden
 copyright: Copyright &copy; iosonogio
+
+use_directory_urls: false
 
 nav:
   - Linux: linux
@@ -20,6 +22,7 @@ extra:
   generator: false
 
 plugins:
+
   - search
   - awesome-pages
   - ezlinks
@@ -31,6 +34,11 @@ plugins:
       base_name: 'categories'
       section_title: 'Categories'
       no_nav: true
+  # - file-filter:
+  #     filter_nav: false
+  #     metadata_property: visibility
+  #     exclude_tag:
+  #       - private
 
 markdown_extensions:
   - pymdownx.highlight:

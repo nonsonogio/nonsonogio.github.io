@@ -4,6 +4,7 @@ tags:
   - forensics
 categories:
   - dfir
+visibility: public
 ---
 
 # Welcome to Digital Forensics
