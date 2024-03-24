@@ -15,7 +15,8 @@ permissions:
 jobs:
 
   hello:
-    run: echo "hello world"
+    steps:
+      - run: echo "hello world"
 
   # build:
   #   name: Build website
