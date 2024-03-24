@@ -5,8 +5,8 @@ on:
       - main
   repository_dispatch:
     types:
-      - content_updated
-      - quartz_updated
+      - content_update
+      - quartz_update
 
 permissions:
   pages: write      # to deploy to Pages
